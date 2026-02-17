@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dataset_id }} — Minari Explorer{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h1>{{ dataset_id }}</h1>
+    <p>Environment: <code>{{ env_spec or "N/A" }}</code></p>
+</hgroup>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h4>Total Episodes</h4>
+        <p>{{ total_episodes }}</p>
+    </div>
+    <div class="stat-card">
+        <h4>Total Steps</h4>
+        <p>{{ total_steps }}</p>
+    </div>
+    <div class="stat-card">
+        <h4>Observation Space</h4>
+        <p><small>{{ obs_space }}</small></p>
+    </div>
+    <div class="stat-card">
+        <h4>Action Space</h4>
+        <p><small>{{ act_space }}</small></p>
+    </div>
+</div>
+
+{% if charts %}
+<h2>Statistics</h2>
+<div class="charts-grid">
+    {% for chart_html in charts %}
+    <div>{{ chart_html | safe }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<h2>Episodes</h2>
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Episode</th>
+                <th>Length</th>
+                <th>Total Reward</th>
+                <th>Terminated</th>
+                <th>Truncated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ep in episodes %}
+            <tr>
+                <td><a href="/dataset/{{ dataset_id }}/episode/{{ ep.index }}">{{ ep.index }}</a></td>
+                <td>{{ ep.length }}</td>
+                <td>{{ "%.2f" | format(ep.reward) }}</td>
+                <td>{{ "Yes" if ep.terminated else "No" }}</td>
+                <td>{{ "Yes" if ep.truncated else "No" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% endblock %}
