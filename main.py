@@ -40,7 +40,7 @@ print()
 
 # --- 3. Evaluate trained policy ---
 
-env = dataset.recover_environment()
+env = dataset.recover_environment(render_mode="human")
 num_eval_episodes = 5
 rewards = []
 
