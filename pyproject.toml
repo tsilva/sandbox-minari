@@ -1,0 +1,4 @@
+[project]
+name = "my-project"
+description = "Short description of what this project explores."
+requires-python = ">=3.12"
