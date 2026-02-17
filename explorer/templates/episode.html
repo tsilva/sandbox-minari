@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Episode {{ ep_idx }} — {{ dataset_id }} — Minari Explorer{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h1>Episode {{ ep_idx }}</h1>
+    <p>
+        <a href="/dataset/{{ dataset_id }}">{{ dataset_id }}</a> —
+        {{ total_steps }} steps, total reward: {{ "%.2f" | format(total_reward) }}
+    </p>
+</hgroup>
+
+<div class="step-nav">
+    <button
+        {% if step > 0 %}
+        hx-get="/dataset/{{ dataset_id }}/episode/{{ ep_idx }}/step/{{ step - 1 }}"
+        hx-target="#step-panel"
+        hx-swap="innerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+    >&larr; Prev</button>
+    <span>Step <strong>{{ step }}</strong> of {{ total_steps - 1 }}</span>
+    <button
+        {% if step < total_steps - 1 %}
+        hx-get="/dataset/{{ dataset_id }}/episode/{{ ep_idx }}/step/{{ step + 1 }}"
+        hx-target="#step-panel"
+        hx-swap="innerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+    >Next &rarr;</button>
+</div>
+
+<div id="step-panel">
+    {% include "step_fragment.html" %}
+</div>
+{% endblock %}

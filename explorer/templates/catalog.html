@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Catalog — Minari Explorer{% endblock %}
+
+{% block content %}
+<h1>Dataset Catalog</h1>
+<p>{{ datasets | length }} datasets available on Farama Minari.</p>
+
+<input type="search"
+       name="q"
+       placeholder="Search datasets..."
+       hx-get="/search"
+       hx-trigger="input changed delay:300ms, search"
+       hx-target="#dataset-rows"
+       hx-indicator="#search-spinner">
+<span id="search-spinner" class="htmx-indicator" aria-busy="true"></span>
+
+<figure>
+    <table>
+        <thead>
+            <tr>
+                <th>Dataset ID</th>
+                <th>Total Episodes</th>
+                <th>Total Steps</th>
+            </tr>
+        </thead>
+        <tbody id="dataset-rows">
+            {% for ds_id, info in datasets.items() %}
+            <tr>
+                <td><a href="/dataset/{{ ds_id }}">{{ ds_id }}</a></td>
+                <td>{{ info.get("total_episodes", "—") }}</td>
+                <td>{{ info.get("total_steps", "—") }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</figure>
+{% endblock %}

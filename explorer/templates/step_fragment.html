@@ -1,0 +1,35 @@
+<div class="step-nav">
+    <button
+        {% if step > 0 %}
+        hx-get="/dataset/{{ dataset_id }}/episode/{{ ep_idx }}/step/{{ step - 1 }}"
+        hx-target="#step-panel"
+        hx-swap="innerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+    >&larr; Prev</button>
+    <span>Step <strong>{{ step }}</strong> of {{ total_steps - 1 }}</span>
+    <button
+        {% if step < total_steps - 1 %}
+        hx-get="/dataset/{{ dataset_id }}/episode/{{ ep_idx }}/step/{{ step + 1 }}"
+        hx-target="#step-panel"
+        hx-swap="innerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+    >Next &rarr;</button>
+</div>
+
+<dl class="step-detail">
+    <dt>Observation</dt>
+    <dd>{{ obs_html | safe }}</dd>
+
+    <dt>Action</dt>
+    <dd><code>{{ action }}</code></dd>
+
+    <dt>Reward</dt>
+    <dd>{{ "%.4f" | format(reward) }}</dd>
+
+    <dt>Cumulative Reward</dt>
+    <dd>{{ "%.4f" | format(cumulative_reward) }}</dd>
+</dl>
