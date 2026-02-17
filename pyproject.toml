@@ -1,4 +1,9 @@
 [project]
 name = "sandbox-minari"
+version = "0.1.0"
 description = "Sandbox for exploring Minari offline RL datasets"
 requires-python = ">=3.12"
+dependencies = [
+    "minari[all]>=0.5.0",
+    "gymnasium>=1.0.0",
+]
