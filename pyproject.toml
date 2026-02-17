@@ -1,4 +1,4 @@
 [project]
-name = "my-project"
-description = "Short description of what this project explores."
+name = "sandbox-minari"
+description = "Sandbox for exploring Minari offline RL datasets"
 requires-python = ">=3.12"
