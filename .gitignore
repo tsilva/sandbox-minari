@@ -1,51 +1,50 @@
-# Standard gitignore rules for tsilva organization
-# Used by scripts/sync-gitignore.sh
-
-# Claude Code
-
-# Secrets and credentials
-
-# macOS
-
-# IDE
-
-# Python
-
-# Node.js
-
-# Build artifacts
-
-# Logs
-
-# Managed by tsilva/.github
-# Do not remove - synced automatically
+# >>> MANAGED BY GITGUARD - DO NOT EDIT THIS SECTION <<<
 .claude/*.local.json
+.claude/*.local.json.bak
+.claude-sandbox.json
 .env
 .env.*
 !.env.example
+!.env.*.example
+.env.*.local
+.env.local
 *.pem
 *.key
 *.p12
+*.pfx
+*.gpg
+*.secret
+*-credentials.json
+service-account*.json
 credentials.json
 secrets.json
 .secrets/
+.aws/
+.ssh/
+config.local.*
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/*
-!.vscode/settings.json
+.vscode/
 *.swp
 *.swo
+*.code-workspace
 __pycache__/
-*.pyc
+*.py[cod]
 .venv/
 venv/
+env/
 *.egg-info/
 node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 dist/
 build/
 logs/
 *.log
+# >>> END MANAGED <<<
 
-# d3rlpy
+# Project-specific rules
 d3rlpy_logs/
