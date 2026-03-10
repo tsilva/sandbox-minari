@@ -39,6 +39,18 @@ uv run python train_breakout.py --render-mode none
 
 Use `--render-mode human` if you want to watch the Breakout policy play live.
 
+Train once and save the Breakout model:
+
+```bash
+uv run python train_breakout.py --save-model-path models/breakout_bc.d3
+```
+
+Later, load the saved model and only run evaluation:
+
+```bash
+uv run python train_breakout.py --eval-only --load-model-path models/breakout_bc.d3 --render-mode human
+```
+
 ## Dependencies
 
 The project now installs Gymnasium's Atari extras so `atari/breakout/expert-v0` can recover `ALE/Breakout-v5`. Minari caches downloaded datasets under `~/.minari/`.
