@@ -22,6 +22,7 @@ N_STEPS_PER_EPOCH = 300
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
 FEATURE_SIZE = 256
+BETA = 0.5
 NUM_EVAL_EPISODES = 5
 MAX_EVAL_STEPS = 5000
 DEFAULT_MODEL_PATH = "models/breakout_bc.d3"
@@ -43,6 +44,8 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
     parser.add_argument("--feature-size", type=int, default=FEATURE_SIZE)
+    parser.add_argument("--beta", type=float, default=BETA)
+    parser.add_argument("--use-batch-norm", action="store_true")
     parser.add_argument("--num-eval-episodes", type=int, default=NUM_EVAL_EPISODES)
     parser.add_argument("--max-eval-steps", type=int, default=MAX_EVAL_STEPS)
     parser.add_argument("--save-model-path", default=DEFAULT_MODEL_PATH)
@@ -50,6 +53,7 @@ def parse_args():
     parser.add_argument("--eval-only", action="store_true")
     parser.add_argument("--patience", type=int, default=PATIENCE)
     parser.add_argument("--min-delta", type=float, default=MIN_DELTA)
+    parser.add_argument("--augment-horizontal-flip", action="store_true")
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--render-mode",
@@ -134,6 +138,22 @@ def accuracy(policy, data):
     return float(np.mean(predictions == data["actions"]))
 
 
+def augment_horizontal_flip(data):
+    """Double the training set with horizontal flips and LEFT/RIGHT action swaps."""
+    flipped_actions = data["actions"].copy()
+    flipped_actions[data["actions"] == 2] = 3
+    flipped_actions[data["actions"] == 3] = 2
+    return {
+        "observations": np.concatenate(
+            [data["observations"], data["observations"][..., ::-1]], axis=0
+        ),
+        "actions": np.concatenate([data["actions"], flipped_actions], axis=0),
+        "rewards": np.concatenate([data["rewards"], data["rewards"]], axis=0),
+        "terminals": np.concatenate([data["terminals"], data["terminals"]], axis=0),
+        "timeouts": np.concatenate([data["timeouts"], data["timeouts"]], axis=0),
+    }
+
+
 def make_eval_env(dataset, render_mode):
     """Recover the Atari environment, optionally with rendering enabled."""
     kwargs = {} if render_mode == "none" else {"render_mode": render_mode}
@@ -185,7 +205,11 @@ def create_policy(args):
     return DiscreteBCConfig(
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
-        encoder_factory=PixelEncoderFactory(feature_size=args.feature_size),
+        encoder_factory=PixelEncoderFactory(
+            feature_size=args.feature_size,
+            use_batch_norm=args.use_batch_norm,
+        ),
+        beta=args.beta,
     ).create(device=args.device)
 
 
@@ -277,6 +301,8 @@ def main():
         train_data = concatenate_episode_buffers(episode_buffers, train_indices)
         val_data = concatenate_episode_buffers(episode_buffers, val_indices)
         test_data = concatenate_episode_buffers(episode_buffers, test_indices)
+        if args.augment_horizontal_flip:
+            train_data = augment_horizontal_flip(train_data)
 
         unique_actions, counts = np.unique(train_data["actions"], return_counts=True)
         print(f"\n  Screen size:    {args.screen_size}x{args.screen_size} grayscale")

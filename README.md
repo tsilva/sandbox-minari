@@ -45,6 +45,12 @@ Train once and save the Breakout model:
 uv run python train_breakout.py --n-steps 20000 --save-model-path models/breakout_bc.d3
 ```
 
+If you want to squeeze a bit more held-out accuracy on the current fixed split, the best variant tested was horizontal flip augmentation on the training set:
+
+```bash
+uv run python train_breakout.py --augment-horizontal-flip --save-model-path models/breakout_bc.d3
+```
+
 Later, load the saved model and only run evaluation:
 
 ```bash
