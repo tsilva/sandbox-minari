@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 DATASET_ID = "atari/breakout/expert-v0"
 TRAIN_SPLIT = 0.8
+VAL_FRACTION = 0.25
 SCREEN_SIZE = 84
 STACK_SIZE = 4
 N_STEPS = 3000
@@ -24,6 +25,8 @@ FEATURE_SIZE = 256
 NUM_EVAL_EPISODES = 5
 MAX_EVAL_STEPS = 5000
 DEFAULT_MODEL_PATH = "models/breakout_bc.d3"
+PATIENCE = 5
+MIN_DELTA = 0.001
 SEED = 42
 
 
@@ -32,6 +35,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-id", default=DATASET_ID)
     parser.add_argument("--train-split", type=float, default=TRAIN_SPLIT)
+    parser.add_argument("--val-fraction", type=float, default=VAL_FRACTION)
     parser.add_argument("--screen-size", type=int, default=SCREEN_SIZE)
     parser.add_argument("--stack-size", type=int, default=STACK_SIZE)
     parser.add_argument("--n-steps", type=int, default=N_STEPS)
@@ -44,6 +48,8 @@ def parse_args():
     parser.add_argument("--save-model-path", default=DEFAULT_MODEL_PATH)
     parser.add_argument("--load-model-path")
     parser.add_argument("--eval-only", action="store_true")
+    parser.add_argument("--patience", type=int, default=PATIENCE)
+    parser.add_argument("--min-delta", type=float, default=MIN_DELTA)
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--render-mode",
@@ -122,6 +128,12 @@ def predict_in_batches(policy, observations, batch_size=128):
     return np.concatenate(predictions, axis=0)
 
 
+def accuracy(policy, data):
+    """Compute action prediction accuracy for one split."""
+    predictions = predict_in_batches(policy, data["observations"])
+    return float(np.mean(predictions == data["actions"]))
+
+
 def make_eval_env(dataset, render_mode):
     """Recover the Atari environment, optionally with rendering enabled."""
     kwargs = {} if render_mode == "none" else {"render_mode": render_mode}
@@ -189,6 +201,26 @@ def load_saved_policy(args, model_path):
     return policy
 
 
+def split_episode_indices(num_episodes, train_split, val_fraction, seed):
+    """Split episodes into train, validation, and test sets."""
+    if num_episodes < 3:
+        raise ValueError("Need at least 3 episodes to create train/val/test splits.")
+
+    rng = np.random.default_rng(seed)
+    episode_indices = rng.permutation(num_episodes)
+
+    train_val_count = int(train_split * num_episodes)
+    train_val_count = min(max(train_val_count, 2), num_episodes - 1)
+    val_count = int(round(val_fraction * train_val_count))
+    val_count = min(max(val_count, 1), train_val_count - 1)
+    train_count = train_val_count - val_count
+
+    train_indices = episode_indices[:train_count]
+    val_indices = episode_indices[train_count:train_val_count]
+    test_indices = episode_indices[train_val_count:]
+    return train_indices, val_indices, test_indices
+
+
 def main():
     """Load dataset, train policy, and evaluate in the live environment."""
     args = parse_args()
@@ -235,23 +267,22 @@ def main():
         ):
             episode_buffers.append(build_episode_buffer(episode, args.screen_size, args.stack_size))
 
-        if len(episode_buffers) < 2:
-            raise ValueError("Need at least 2 episodes to create train/test splits.")
-
-        rng = np.random.default_rng(SEED)
-        episode_indices = rng.permutation(len(episode_buffers))
-        split = int(args.train_split * len(episode_buffers))
-        split = min(max(split, 1), len(episode_buffers) - 1)
-        train_indices = episode_indices[:split]
-        test_indices = episode_indices[split:]
+        train_indices, val_indices, test_indices = split_episode_indices(
+            num_episodes=len(episode_buffers),
+            train_split=args.train_split,
+            val_fraction=args.val_fraction,
+            seed=SEED,
+        )
 
         train_data = concatenate_episode_buffers(episode_buffers, train_indices)
+        val_data = concatenate_episode_buffers(episode_buffers, val_indices)
         test_data = concatenate_episode_buffers(episode_buffers, test_indices)
 
         unique_actions, counts = np.unique(train_data["actions"], return_counts=True)
         print(f"\n  Screen size:    {args.screen_size}x{args.screen_size} grayscale")
         print(f"  Frame stack:    {args.stack_size}")
         print(f"  Train episodes: {len(train_indices)} ({len(train_data['actions'])} steps)")
+        print(f"  Val episodes:   {len(val_indices)} ({len(val_data['actions'])} steps)")
         print(f"  Test episodes:  {len(test_indices)} ({len(test_data['actions'])} steps)")
         mean_dataset_return = np.mean([item["return"] for item in episode_buffers])
         print(f"  Dataset return: {mean_dataset_return:.1f} avg reward/episode")
@@ -267,27 +298,62 @@ def main():
         )
 
         print("=" * 60)
-        print("STEP 3: Training DiscreteBC with a pixel encoder")
+        print("STEP 3: Training DiscreteBC with early stopping on val accuracy")
         print("=" * 60)
 
         policy = create_policy(args)
-        policy.fit(
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+
+        best_val_accuracy = float("-inf")
+        best_epoch = 0
+        best_step = 0
+        patience_counter = 0
+
+        for epoch, metrics in policy.fitter(
             train_dataset,
             n_steps=args.n_steps,
             n_steps_per_epoch=args.n_steps_per_epoch,
             experiment_name="breakout_bc",
             show_progress=True,
-        )
+        ):
+            train_accuracy = accuracy(policy, train_data)
+            val_accuracy = accuracy(policy, val_data)
+            total_step = epoch * args.n_steps_per_epoch
+            improved = val_accuracy > (best_val_accuracy + args.min_delta)
 
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        policy.save(str(model_path))
+            tqdm.write(
+                "  Epoch "
+                f"{epoch:2d}: loss={metrics['loss']:.4f} | "
+                f"train_acc={train_accuracy:.1%} | val_acc={val_accuracy:.1%}"
+            )
+
+            if improved:
+                best_val_accuracy = val_accuracy
+                best_epoch = epoch
+                best_step = total_step
+                patience_counter = 0
+                policy.save(str(model_path))
+                tqdm.write(
+                    f"    New best val accuracy; saved checkpoint to {model_path}"
+                )
+            else:
+                patience_counter += 1
+                tqdm.write(
+                    f"    No improvement for {patience_counter}/{args.patience} epoch(s)"
+                )
+                if patience_counter >= args.patience:
+                    tqdm.write(
+                        f"    Early stopping at epoch {epoch}; best epoch was {best_epoch}"
+                    )
+                    break
+
         print(f"\n  Saved model:    {model_path}")
+        print(f"  Best epoch:     {best_epoch}")
+        print(f"  Best val acc:   {best_val_accuracy:.1%}")
 
-        train_predictions = predict_in_batches(policy, train_data["observations"])
-        test_predictions = predict_in_batches(policy, test_data["observations"])
-        train_accuracy = np.mean(train_predictions == train_data["actions"])
-        test_accuracy = np.mean(test_predictions == test_data["actions"])
-
+        policy = load_saved_policy(args, model_path)
+        train_accuracy = accuracy(policy, train_data)
+        test_accuracy = accuracy(policy, test_data)
         print(f"  Train accuracy: {train_accuracy:.1%}")
         print(f"  Test accuracy:  {test_accuracy:.1%}")
         print()
@@ -382,7 +448,10 @@ def main():
     print("  Algorithm:      DiscreteBC (d3rlpy)")
     print(f"  Model path:     {model_path}")
     if not args.eval_only:
-        print(f"  Training steps: {args.n_steps}")
+        print(f"  Max steps:      {args.n_steps}")
+        print(f"  Best step:      {best_step}")
+        print(f"  Best epoch:     {best_epoch}")
+        print(f"  Best val acc:   {best_val_accuracy:.1%}")
     if test_accuracy is not None:
         print(f"  Test accuracy:  {test_accuracy:.1%} (held-out episodes)")
     print(f"  Mean reward:    {np.mean(rewards):.1f} (+/- {np.std(rewards):.1f})")
