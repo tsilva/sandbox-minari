@@ -5,16 +5,13 @@ description = "Sandbox for exploring Minari offline RL datasets"
 requires-python = ">=3.12"
 dependencies = [
     "minari[hf,hdf5,create]>=0.5.0",
-    "gymnasium>=1.0.0",
+    "gymnasium[atari]>=1.1.0",
     "scikit-learn>=1.5.0",
     "numpy>=1.26.0",
-    "Pillow>=10.0.0",
     "minigrid>=2.3.0",
     "d3rlpy>=2.5.0",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
-    "jinja2>=3.1.0",
-    "plotly>=5.24.0",
+    "Pillow>=10.0.0",
+    "tqdm>=4.66.0",
 ]
 
 [tool.ruff]

@@ -10,7 +10,7 @@
 
 ## Overview
 
-A sandbox for experimenting with [Minari](https://minari.farama.org/) — a Python API and dataset repository for offline reinforcement learning. Load, inspect, and learn from pre-collected environment interaction data without needing to train agents from scratch.
+A sandbox for experimenting with [Minari](https://minari.farama.org/) and offline reinforcement learning. The repo focuses on small Python scripts that load datasets, train offline policies, and evaluate them in the recovered Gymnasium environment.
 
 ## 🚀 Quick Start
 
@@ -18,33 +18,30 @@ A sandbox for experimenting with [Minari](https://minari.farama.org/) — a Pyth
 git clone https://github.com/tsilva/sandbox-minari.git
 cd sandbox-minari
 uv venv && source .venv/bin/activate
-uv pip install -e .
+uv sync
 ```
 
-## 📦 Dependencies
+## Scripts
 
-Install Minari and common RL libraries:
+- `quickstart.py` lists remote datasets, downloads one example dataset, and prints episode metadata.
+- `main.py` trains a behavioral cloning baseline with `MLPClassifier` on MiniGrid FourRooms and evaluates it in the live environment.
+- `train_cql.py` trains `DiscreteCQL` with `d3rlpy` on the same dataset for comparison.
+- `train_breakout.py` trains a pixel-based behavioral cloning policy on Minari's Breakout expert dataset.
+
+Run any script directly:
 
 ```bash
-uv pip install minari gymnasium
+uv run python quickstart.py
+uv run python main.py
+uv run python train_cql.py
+uv run python train_breakout.py --render-mode none
 ```
 
-## 🧪 Usage
+Use `--render-mode human` if you want to watch the Breakout policy play live.
 
-```python
-import minari
+## Dependencies
 
-# List available datasets
-datasets = minari.list_remote_datasets()
-print(datasets)
-
-# Download and load a dataset
-dataset = minari.load_dataset("CartPole-v1-test-v0", download=True)
-
-# Iterate through episodes
-for episode in dataset.iterate_episodes():
-    print(f"Episode length: {episode.total_timesteps}")
-```
+The project now installs Gymnasium's Atari extras so `atari/breakout/expert-v0` can recover `ALE/Breakout-v5`. Minari caches downloaded datasets under `~/.minari/`.
 
 ## 🔗 Resources
 
