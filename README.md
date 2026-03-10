@@ -26,7 +26,7 @@ uv sync
 - `quickstart.py` lists remote datasets, downloads one example dataset, and prints episode metadata.
 - `main.py` trains a behavioral cloning baseline with `MLPClassifier` on MiniGrid FourRooms and evaluates it in the live environment.
 - `train_cql.py` trains `DiscreteCQL` with `d3rlpy` on the same dataset for comparison.
-- `train_breakout.py` trains a pixel-based behavioral cloning policy on Minari's Breakout expert dataset.
+- `train_breakout.py` trains a pixel-based behavioral cloning policy on Minari's Breakout expert dataset with early stopping on a validation split.
 
 Run any script directly:
 
@@ -42,7 +42,7 @@ Use `--render-mode human` if you want to watch the Breakout policy play live.
 Train once and save the Breakout model:
 
 ```bash
-uv run python train_breakout.py --save-model-path models/breakout_bc.d3
+uv run python train_breakout.py --n-steps 20000 --save-model-path models/breakout_bc.d3
 ```
 
 Later, load the saved model and only run evaluation:
