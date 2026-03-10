@@ -133,11 +133,14 @@ print("=" * 60)
 print("SUMMARY")
 print("=" * 60)
 n_success = sum(1 for r in eval_rewards if r > 0)
-print(f"  Algorithm:    DiscreteCQL (d3rlpy)")
+print("  Algorithm:    DiscreteCQL (d3rlpy)")
 print(f"  Training:     {N_STEPS} steps ({N_STEPS // N_STEPS_PER_EPOCH} epochs)")
-print(f"  Success rate: {n_success}/{len(eval_rewards)} episodes ({n_success / len(eval_rewards):.0%})")
+success_rate = n_success / len(eval_rewards)
+print(f"  Success rate: {n_success}/{len(eval_rewards)} episodes ({success_rate:.0%})")
 print(f"  Mean reward:  {np.mean(eval_rewards):.3f} (+/- {np.std(eval_rewards):.3f})")
-mean_success_steps = np.mean([s for s, r in zip(episode_steps, eval_rewards) if r > 0]) if n_success > 0 else 0
+mean_success_steps = (
+    np.mean([s for s, r in zip(episode_steps, eval_rewards) if r > 0]) if n_success > 0 else 0
+)
 print(f"  Mean steps:   {np.mean(episode_steps):.0f} (successes: {mean_success_steps:.0f})")
 print()
 print("  Compare with main.py (behavioral cloning) to see the difference")

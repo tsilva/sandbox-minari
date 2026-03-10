@@ -33,7 +33,7 @@ python train_cql.py
 - `gymnasium` / `minigrid` — RL environments
 - `scikit-learn` — MLPClassifier for behavioral cloning
 - `d3rlpy` — Offline RL algorithms (CQL)
-- `numpy`, `Pillow`, `tqdm` — Data processing and progress display
+- `numpy`, `tqdm` — Data processing and progress display
 
 ## Conventions
 

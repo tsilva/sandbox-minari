@@ -175,4 +175,7 @@ n_success = sum(1 for r in rewards if r > 0)
 print(f"  Test accuracy:  {test_acc:.1%} (held-out episodes)")
 print(f"  Success rate:   {n_success}/{len(rewards)} episodes ({n_success/len(rewards):.0%})")
 print(f"  Mean reward:    {np.mean(rewards):.3f} (+/- {np.std(rewards):.3f})")
-print(f"  Mean steps:     {np.mean(episode_steps):.0f} (successes: {np.mean([s for s, r in zip(episode_steps, rewards) if r > 0]) if n_success > 0 else 0:.0f})")
+mean_success_steps = (
+    np.mean([s for s, r in zip(episode_steps, rewards) if r > 0]) if n_success > 0 else 0
+)
+print(f"  Mean steps:     {np.mean(episode_steps):.0f} (successes: {mean_success_steps:.0f})")
