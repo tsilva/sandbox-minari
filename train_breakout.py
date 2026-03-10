@@ -1,7 +1,9 @@
 """Train a behavioral-cloning policy on Minari's Breakout expert dataset."""
 
 import argparse
+from pathlib import Path
 
+import d3rlpy
 import minari
 import numpy as np
 from d3rlpy.algos import DiscreteBCConfig
@@ -20,6 +22,8 @@ BATCH_SIZE = 32
 LEARNING_RATE = 1e-4
 FEATURE_SIZE = 256
 NUM_EVAL_EPISODES = 5
+MAX_EVAL_STEPS = 5000
+DEFAULT_MODEL_PATH = "models/breakout_bc.d3"
 SEED = 42
 
 
@@ -36,6 +40,10 @@ def parse_args():
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
     parser.add_argument("--feature-size", type=int, default=FEATURE_SIZE)
     parser.add_argument("--num-eval-episodes", type=int, default=NUM_EVAL_EPISODES)
+    parser.add_argument("--max-eval-steps", type=int, default=MAX_EVAL_STEPS)
+    parser.add_argument("--save-model-path", default=DEFAULT_MODEL_PATH)
+    parser.add_argument("--load-model-path")
+    parser.add_argument("--eval-only", action="store_true")
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--render-mode",
@@ -139,9 +147,55 @@ def update_history(history, previous_observation, observation, screen_size):
     return np.concatenate([history[1:], next_frame[None, ...]], axis=0)
 
 
+def step_env(env, action, history, previous_observation, screen_size):
+    """Apply an environment step and keep frame history aligned with training."""
+    observation, reward, terminated, truncated, info = env.step(action)
+    history = update_history(
+        history,
+        previous_observation=previous_observation,
+        observation=observation,
+        screen_size=screen_size,
+    )
+    return observation, reward, terminated, truncated, info, history
+
+
+def find_fire_action(env):
+    """Return the FIRE action index if the environment exposes one."""
+    action_meanings = getattr(env.unwrapped, "get_action_meanings", lambda: [])()
+    for index, meaning in enumerate(action_meanings):
+        if meaning == "FIRE":
+            return index
+    return None
+
+
+def create_policy(args):
+    """Create the policy with the configured pixel encoder."""
+    return DiscreteBCConfig(
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        encoder_factory=PixelEncoderFactory(feature_size=args.feature_size),
+    ).create(device=args.device)
+
+
+def load_saved_policy(args, model_path):
+    """Instantiate the policy and load weights from disk."""
+    try:
+        policy = d3rlpy.load_learnable(str(model_path), device=args.device)
+    except Exception as exc:
+        raise RuntimeError(
+            "Could not load the saved model. Check that the checkpoint exists and that "
+            "it was created by a compatible d3rlpy version."
+        ) from exc
+    return policy
+
+
 def main():
     """Load dataset, train policy, and evaluate in the live environment."""
     args = parse_args()
+    model_path = Path(args.load_model_path or args.save_model_path)
+
+    if args.eval_only and not args.load_model_path:
+        raise ValueError("--eval-only requires --load-model-path.")
 
     print("=" * 60)
     print("STEP 1: Loading dataset")
@@ -157,106 +211,161 @@ def main():
     print(f"  Action space: {dataset.action_space}")
     print()
 
-    print("=" * 60)
-    print("STEP 2: Preparing stacked Atari observations")
-    print("=" * 60)
+    if args.eval_only:
+        print("=" * 60)
+        print("STEP 2: Loading saved policy")
+        print("=" * 60)
+        print(f"  Model path:    {model_path}")
+        print(f"  Screen size:   {args.screen_size}")
+        print(f"  Frame stack:   {args.stack_size}")
+        print(f"  Feature size:  {args.feature_size}")
+        print()
+        policy = load_saved_policy(args, model_path)
+        test_accuracy = None
+    else:
+        print("=" * 60)
+        print("STEP 2: Preparing stacked Atari observations")
+        print("=" * 60)
 
-    episode_buffers = []
-    for episode in tqdm(
-        dataset.iterate_episodes(),
-        total=dataset.total_episodes,
-        desc="  Episodes",
-    ):
-        episode_buffers.append(build_episode_buffer(episode, args.screen_size, args.stack_size))
+        episode_buffers = []
+        for episode in tqdm(
+            dataset.iterate_episodes(),
+            total=dataset.total_episodes,
+            desc="  Episodes",
+        ):
+            episode_buffers.append(build_episode_buffer(episode, args.screen_size, args.stack_size))
 
-    if len(episode_buffers) < 2:
-        raise ValueError("Need at least 2 episodes to create train/test splits.")
+        if len(episode_buffers) < 2:
+            raise ValueError("Need at least 2 episodes to create train/test splits.")
 
-    rng = np.random.default_rng(SEED)
-    episode_indices = rng.permutation(len(episode_buffers))
-    split = int(args.train_split * len(episode_buffers))
-    split = min(max(split, 1), len(episode_buffers) - 1)
-    train_indices = episode_indices[:split]
-    test_indices = episode_indices[split:]
+        rng = np.random.default_rng(SEED)
+        episode_indices = rng.permutation(len(episode_buffers))
+        split = int(args.train_split * len(episode_buffers))
+        split = min(max(split, 1), len(episode_buffers) - 1)
+        train_indices = episode_indices[:split]
+        test_indices = episode_indices[split:]
 
-    train_data = concatenate_episode_buffers(episode_buffers, train_indices)
-    test_data = concatenate_episode_buffers(episode_buffers, test_indices)
+        train_data = concatenate_episode_buffers(episode_buffers, train_indices)
+        test_data = concatenate_episode_buffers(episode_buffers, test_indices)
 
-    unique_actions, counts = np.unique(train_data["actions"], return_counts=True)
-    print(f"\n  Screen size:    {args.screen_size}x{args.screen_size} grayscale")
-    print(f"  Frame stack:    {args.stack_size}")
-    print(f"  Train episodes: {len(train_indices)} ({len(train_data['actions'])} steps)")
-    print(f"  Test episodes:  {len(test_indices)} ({len(test_data['actions'])} steps)")
-    mean_dataset_return = np.mean([item["return"] for item in episode_buffers])
-    print(f"  Dataset return: {mean_dataset_return:.1f} avg reward/episode")
-    print(f"  Action dist:    {dict(zip(unique_actions.tolist(), counts.tolist()))}")
-    print()
+        unique_actions, counts = np.unique(train_data["actions"], return_counts=True)
+        print(f"\n  Screen size:    {args.screen_size}x{args.screen_size} grayscale")
+        print(f"  Frame stack:    {args.stack_size}")
+        print(f"  Train episodes: {len(train_indices)} ({len(train_data['actions'])} steps)")
+        print(f"  Test episodes:  {len(test_indices)} ({len(test_data['actions'])} steps)")
+        mean_dataset_return = np.mean([item["return"] for item in episode_buffers])
+        print(f"  Dataset return: {mean_dataset_return:.1f} avg reward/episode")
+        print(f"  Action dist:    {dict(zip(unique_actions.tolist(), counts.tolist()))}")
+        print()
 
-    train_dataset = MDPDataset(
-        observations=train_data["observations"],
-        actions=train_data["actions"],
-        rewards=train_data["rewards"],
-        terminals=train_data["terminals"],
-        timeouts=train_data["timeouts"],
-    )
+        train_dataset = MDPDataset(
+            observations=train_data["observations"],
+            actions=train_data["actions"],
+            rewards=train_data["rewards"],
+            terminals=train_data["terminals"],
+            timeouts=train_data["timeouts"],
+        )
 
-    print("=" * 60)
-    print("STEP 3: Training DiscreteBC with a pixel encoder")
-    print("=" * 60)
+        print("=" * 60)
+        print("STEP 3: Training DiscreteBC with a pixel encoder")
+        print("=" * 60)
 
-    policy = DiscreteBCConfig(
-        batch_size=args.batch_size,
-        learning_rate=args.learning_rate,
-        encoder_factory=PixelEncoderFactory(feature_size=args.feature_size),
-    ).create(device=args.device)
+        policy = create_policy(args)
+        policy.fit(
+            train_dataset,
+            n_steps=args.n_steps,
+            n_steps_per_epoch=args.n_steps_per_epoch,
+            experiment_name="breakout_bc",
+            show_progress=True,
+        )
 
-    policy.fit(
-        train_dataset,
-        n_steps=args.n_steps,
-        n_steps_per_epoch=args.n_steps_per_epoch,
-        experiment_name="breakout_bc",
-        show_progress=True,
-    )
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        policy.save(str(model_path))
+        print(f"\n  Saved model:    {model_path}")
 
-    train_predictions = predict_in_batches(policy, train_data["observations"])
-    test_predictions = predict_in_batches(policy, test_data["observations"])
-    train_accuracy = np.mean(train_predictions == train_data["actions"])
-    test_accuracy = np.mean(test_predictions == test_data["actions"])
+        train_predictions = predict_in_batches(policy, train_data["observations"])
+        test_predictions = predict_in_batches(policy, test_data["observations"])
+        train_accuracy = np.mean(train_predictions == train_data["actions"])
+        test_accuracy = np.mean(test_predictions == test_data["actions"])
 
-    print(f"\n  Train accuracy: {train_accuracy:.1%}")
-    print(f"  Test accuracy:  {test_accuracy:.1%}")
-    print()
+        print(f"  Train accuracy: {train_accuracy:.1%}")
+        print(f"  Test accuracy:  {test_accuracy:.1%}")
+        print()
 
     print("=" * 60)
     print(f"STEP 4: Evaluating for {args.num_eval_episodes} episodes in environment")
     print("=" * 60)
 
     env = make_eval_env(dataset, args.render_mode)
+    fire_action = find_fire_action(env)
     rewards = []
     episode_steps = []
 
     for episode_number in tqdm(range(args.num_eval_episodes), desc="  Evaluating", unit="ep"):
-        observation, _ = env.reset()
+        observation, info = env.reset()
         previous_observation = observation
         history = reset_history(observation, args.screen_size, args.stack_size)
+        lives = info.get("lives")
         total_reward = 0.0
         steps = 0
         done = False
 
-        while not done:
-            action = int(policy.predict(history[None, ...])[0])
-            observation, reward, terminated, truncated, _ = env.step(action)
-            total_reward += reward
-            steps += 1
-            done = terminated or truncated
-
-            history = update_history(
-                history,
+        if fire_action is not None:
+            observation, reward, terminated, truncated, info, history = step_env(
+                env=env,
+                action=fire_action,
+                history=history,
                 previous_observation=previous_observation,
-                observation=observation,
                 screen_size=args.screen_size,
             )
             previous_observation = observation
+            total_reward += reward
+            steps += 1
+            done = terminated or truncated
+            lives = info.get("lives", lives)
+
+        while not done:
+            action = int(policy.predict(history[None, ...])[0])
+            observation, reward, terminated, truncated, info, history = step_env(
+                env=env,
+                action=action,
+                history=history,
+                previous_observation=previous_observation,
+                screen_size=args.screen_size,
+            )
+            total_reward += reward
+            steps += 1
+            done = terminated or truncated
+            previous_observation = observation
+            current_lives = info.get("lives", lives)
+
+            if (
+                not done
+                and fire_action is not None
+                and lives is not None
+                and current_lives < lives
+            ):
+                observation, reward, terminated, truncated, info, history = step_env(
+                    env=env,
+                    action=fire_action,
+                    history=history,
+                    previous_observation=previous_observation,
+                    screen_size=args.screen_size,
+                )
+                previous_observation = observation
+                total_reward += reward
+                steps += 1
+                done = terminated or truncated
+                current_lives = info.get("lives", current_lives)
+
+            lives = current_lives
+
+            if steps >= args.max_eval_steps:
+                tqdm.write(
+                    "  Episode "
+                    f"{episode_number + 1:2d}: reached max_eval_steps={args.max_eval_steps}"
+                )
+                break
 
         rewards.append(total_reward)
         episode_steps.append(steps)
@@ -271,8 +380,11 @@ def main():
     print("SUMMARY")
     print("=" * 60)
     print("  Algorithm:      DiscreteBC (d3rlpy)")
-    print(f"  Training steps: {args.n_steps}")
-    print(f"  Test accuracy:  {test_accuracy:.1%} (held-out episodes)")
+    print(f"  Model path:     {model_path}")
+    if not args.eval_only:
+        print(f"  Training steps: {args.n_steps}")
+    if test_accuracy is not None:
+        print(f"  Test accuracy:  {test_accuracy:.1%} (held-out episodes)")
     print(f"  Mean reward:    {np.mean(rewards):.1f} (+/- {np.std(rewards):.1f})")
     print(f"  Mean steps:     {np.mean(episode_steps):.0f}")
 
