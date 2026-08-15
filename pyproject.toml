@@ -10,8 +10,15 @@ dependencies = [
     "numpy>=1.26.0",
     "minigrid>=2.3.0",
     "d3rlpy>=2.5.0",
-    "Pillow>=10.0.0",
+    "Pillow>=12.3.0",
     "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pip-audit>=2.9.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.0",
 ]
 
 [tool.ruff]
@@ -20,9 +27,17 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.uv]
+required-version = "==0.11.13"
 exclude-newer = "7 days"
 constraint-dependencies = [
+  "click>=8.3.3",
+  "pygments>=2.20.0",
+  "setuptools>=83.0.0",
+  "torch>=2.13.0",
   "mistralai!=2.4.6",
   "guardrails-ai!=0.10.1",
 ]
