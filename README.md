@@ -1,19 +1,20 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/tsilva/sandbox-minari/main/logo.png" alt="sandbox-minari" width="512"/>
+  <br />
+  <!-- repo-tagline:start -->
+  <strong>🤖 Explore offline reinforcement learning datasets with Minari 📊</strong>
+  <!-- repo-tagline:end -->
+</p>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+  [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
 <!-- archive-repo:deprecation-notice:start -->
 > [!WARNING]
 > **Deprecated**
 >
 > This sandbox is no longer needed because I already use Minari in [minariviz](https://github.com/tsilva/minariviz), a real project.
 <!-- archive-repo:deprecation-notice:end -->
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/tsilva/sandbox-minari/main/logo.png" alt="sandbox-minari" width="512"/>
-
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-  [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-
-  **🤖 Explore offline reinforcement learning datasets with Minari 📊**
-
-</div>
 
 ## Overview
 
