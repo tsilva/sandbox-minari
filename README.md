@@ -1,3 +1,10 @@
+<!-- archive-repo:deprecation-notice:start -->
+> [!WARNING]
+> **Deprecated**
+>
+> This sandbox is retired because [minariviz](https://github.com/tsilva/minariviz) is now the real project using Minari.
+<!-- archive-repo:deprecation-notice:end -->
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/tsilva/sandbox-minari/main/logo.png" alt="sandbox-minari" width="512"/>
 
